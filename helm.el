@@ -2156,7 +2156,8 @@ For ANY-RESUME ANY-INPUT ANY-DEFAULT and ANY-SOURCES See `helm'."
 
     (setq helm-selection-overlay
           (make-overlay (point-min) (point-min) (get-buffer buffer)))
-    (overlay-put helm-selection-overlay 'face 'helm-selection)))
+    (overlay-put helm-selection-overlay 'face 'helm-selection)
+    (overlay-put helm-selection-overlay 'priority 1)))
 
 (defun helm-restore-position-on-quit ()
   "Restore position in `helm-current-buffer' when quitting."
@@ -2873,15 +2874,22 @@ This function is used with sources build with `helm-source-sync'."
   "Give a score to CANDIDATE according to PATTERN.
 Score is calculated against number of contiguous matches found with PATTERN.
 If PATTERN is fully matched in CANDIDATE a maximal score (100) is given.
-A bonus of one point is given when PATTERN prefix match CANDIDATE."
+A bonus of one point is given when PATTERN prefix match CANDIDATE.
+Contiguous matches have a coefficient of 2."
   (let* ((pat-lookup (helm--collect-pairs-in-string pattern))
          (str-lookup (helm--collect-pairs-in-string candidate))
          (bonus (if (equal (car pat-lookup) (car str-lookup)) 1 0))
          (bonus1 (and (string-match (concat "\\<" (regexp-quote pattern) "\\>")
                                     candidate)
                       100)))
-    (+ bonus (or bonus1 (length (cl-nintersection
-                                 pat-lookup str-lookup :test 'equal))))))
+    (+ bonus (or bonus1
+                 ;; Give a coefficient of 2 for contiguous matches.
+                 ;; That's mean that "wiaaaki" will not take precedence
+                 ;; on "aaawiki" when matching on "wiki" even if "wiaaaki"
+                 ;; starts by "wi".
+                 (* (length (cl-nintersection
+                             pat-lookup str-lookup :test 'equal))
+                    2)))))
 
 (defun helm-fuzzy-matching-default-sort-fn (candidates _source)
   "The transformer for sorting candidates in fuzzy matching.
@@ -4798,6 +4806,7 @@ Argument ACTION if present will be used as second argument of `display-buffer'."
                               (or (helm-get-next-candidate-separator-pos)
                                   (point-max))
                             (1+ (point-at-eol))))))
+    (overlay-put o 'priority 0)
     (overlay-put o 'face   'helm-visible-mark)
     (overlay-put o 'source (assoc-default 'name (helm-get-current-source)))
     (overlay-put o 'string (buffer-substring (overlay-start o) (overlay-end o)))
