@@ -594,8 +594,8 @@ to exit or helm update to disable the `current-input-method' with `C-\\'."
   "Face for candidate number in mode-line." :group 'helm-faces)
 
 (defface helm-selection
-    '((((background dark)) :background "ForestGreen" :underline t)
-      (((background light)) :background "#b5ffd1" :underline t))
+    '((((background dark)) :background "ForestGreen")
+      (((background light)) :background "#b5ffd1"))
   "Face for currently selected item in the helm buffer."
   :group 'helm-faces)
 
@@ -1047,9 +1047,14 @@ not `exit-minibuffer' or unwanted functions."
 (defmacro with-helm-restore-variables (&rest body)
   "Restore `helm-restored-variables' after executing BODY."
   (declare (indent 0) (debug t))
-  `(let ,(mapcar (lambda (symbol) (list symbol symbol))
-                 helm-restored-variables)
-     ,@body))
+  (helm-with-gensyms (orig-vars)
+    `(let ((,orig-vars (mapcar (lambda (v)
+                                 (cons v (symbol-value v)))
+                               helm-restored-variables)))
+       (unwind-protect (progn ,@body)
+         (cl-loop for (var . value) in ,orig-vars
+               do (set var value))
+         (helm-log "restore variables")))))
 
 (defmacro with-helm-default-directory (directory &rest body)
   (declare (indent 2) (debug t))
@@ -3565,7 +3570,8 @@ If action buffer is selected, back to the helm buffer."
                                               ((< count 10)
                                                (format "[f%s]  " count))
                                               (t (format "[f%s] " count)))
-                                        (propertize i 'face 'helm-action)) j))))
+                                        (propertize i 'face 'helm-action))
+                                j))))
             (candidate-number-limit))))
     (set (make-local-variable 'helm-source-filter) nil)
     (set (make-local-variable 'helm-selection-overlay) nil)
